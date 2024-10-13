@@ -27,12 +27,14 @@ class ThermalResistance(ThermalElement):
         return -(self.TM1.T - self.TM2.T) / self.R
 
     def connect(self, TM1:ThermalMass, TM2:ThermalMass):
-        assert isinstance(TM1, ThermalMass), "TM1 must be a Mass"
-        assert isinstance(TM2, ThermalMass), "TM2 must be a Mass"
+        assert isinstance(TM1, ThermalMass), "TM1 must be a ThermalMass"
+        assert isinstance(TM2, ThermalMass), "TM2 must be a ThermalMass"
         self.TM1 = TM1
         self.TM2 = TM2
         self.connected = True
-    
+        TM1._connect(self)
+        TM2._connect(self)
+
 class PowerSource(ThermalElement):
     def __init__(self, heat_flow_func: Callable[[float, float, ThermalSystem], float], name:str=None):
         self.__name__ = "PS" if name is None else name
@@ -44,14 +46,18 @@ class PowerSource(ThermalElement):
         return self.prev_dQdt
 
 class TemperatureSource(ThermalElement):
-    def __init__(self, temp_func, name:str=None):
+    def __init__(self, temp_func: Callable[[float], ThermalSystem], name:str=None):
         self.__name__ = "TS" if name is None else name
         self.temp_func = temp_func
-        self.TM = ThermalMass(C=1e12, T_initial=temp_func(0))
+        self.TM = ThermalMass(C=1e20)
         self.R = ThermalResistance(1e-9)
 
-    def heat_flow(self, t, system):
+    def heat_flow(self, t:float, system: ThermalSystem):
+        self.TM.T = self.temp_func(t, system)
         return 0
+    
+    def connect(self, TM:ThermalMass):
+        self.TM.connect(self.R, TM)
     
 class ThermalMass():
     ground_instance = None
@@ -72,15 +78,13 @@ class ThermalMass():
         if element2 is not None:
             if isinstance(element1, ThermalResistance) and isinstance(element2, ThermalMass):
                 element1.connect(self, element2)
-                self._connect(element1)
-                element2._connect(element1)
             else:
                 raise ValueError("Invalid connection")
             return
         
         if isinstance(element1, TemperatureSource):
-            self.connect(element1.TM, element1.R)
-            self._connect(element1.R)
+            TS = element1
+            TS.connect(self)
             return
         
         self._connect(element1)
@@ -245,24 +249,22 @@ if __name__ == "__main__":
     m_floor = ThermalMass(C=1440 * 440, T_initial=T0, name=floor_name)
     m_air = ThermalMass(C=1440 * 44, T_initial=T0, name="Air")
     R_floor_gnd = ThermalResistance(R=0.01)
-    R_floor_air = ThermalResistance(R=0.05)
     R_air_gnd = ThermalResistance(R=0.05)
+    R_floor_air = ThermalResistance(R=0.05)
     
-    heat_source = PowerSource(pwm)
-
+    heat_source = PowerSource(pwm, name="Heating cable")
     sun_source = PowerSource(sun, name="Sun")
+    atmos = TemperatureSource(lambda t, system: 10)
 
     # Connect elements
-    m_air.connect(R_air_gnd, GND)
-    m_air.connect(sun_source)
+    R_air_gnd.connect(m_air, GND)
+    R_floor_air.connect(m_floor, m_air)
     m_floor.connect(heat_source)
-    m_floor.connect(R_floor_gnd, GND)
-    m_floor.connect(R_floor_air, m_air) # Connect floor to air
-
+    R_floor_gnd.connect(m_floor, GND)
 
     # Simulate
     thermal_masses = [m_floor, m_air]
     system = ThermalSystem(thermal_masses)
     dt = 60 # [s]
-    total_time = 1 * 24 * 3600 # [s]
+    total_time = 2 * 24 * 3600 # [s]
     system.simulate(dt, total_time)
