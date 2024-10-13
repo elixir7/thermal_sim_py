@@ -51,7 +51,7 @@ if __name__ == "__main__":
     # Simulate
     thermal_masses = [m_floor, m_air, m_roof]
     system = ThermalSystem(thermal_masses)
-    system.generate_diagram('multi_mass.png')
+    system.generate_diagram('img/multi_mass.png')
     dt = 60 # [s]
     total_time = 4 * 24 * 3600 # [s]
     system.simulate(dt, total_time)

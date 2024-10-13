@@ -26,7 +26,7 @@ if __name__ == "__main__":
     dt = 60 # [s]
     total_time = 1 * 24 * 3600 # [s]
     system = ThermalSystem(m_floor)
-    system.generate_diagram('example_PWM_RC.png')
+    system.generate_diagram('img/PWM_RC.png')
     system.simulate(dt, total_time)
 
 

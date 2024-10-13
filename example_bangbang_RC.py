@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     # Simulate
     system = ThermalSystem(m_floor)
-    system.generate_diagram('example_bangbang_RC.png')
+    system.generate_diagram('img/bangbang_RC.png')
     dt = 60 # [s]
     total_time = 1 * 24 * 3600 # [s]
     system.simulate(dt, total_time, solver=Solver.RK4) # Use e.g a more accurate but slower solver
