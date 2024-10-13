@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import List, Callable
 from abc import ABC, abstractmethod
-from math import sin, pi
 from enum import Enum
 
 import numpy as np
@@ -294,9 +293,9 @@ class ThermalSystem:
         plt.close()
         print(f"Diagram saved as {filename}")
 
-
     def generate_thermal_schematic(self, filename: str = 'thermal_schematic.png'):
         """
+        !!! Not working well, needs to be fixed !!!
         Generate a schematic diagram of the thermal system using Schemdraw with a grid system.
         
         Args:
@@ -366,9 +365,6 @@ class ThermalSystem:
         # Save the schematic
         d.save(filename)
         print(f"Schematic saved as {filename}")
-
-
-    
     
 
 def pwm(t: float, prev_Q: float, system: ThermalSystem) -> float:
@@ -378,12 +374,6 @@ def pwm(t: float, prev_Q: float, system: ThermalSystem) -> float:
     if t > 3600*12:
         duty = 0
     return P if (t % period) < duty*period else 0
-
-def sun(t: float, prev_Q: float, system: ThermalSystem) -> float:
-    P = 100
-    f = 1/(24*3600)
-    return P * sin(2*pi*f*t)
-
 
 if __name__ == "__main__":
     T0 = 17

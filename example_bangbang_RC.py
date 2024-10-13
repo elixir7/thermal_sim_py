@@ -2,19 +2,19 @@ from thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSour
 
 if __name__ == "__main__":
     # Simulate a paralell connected thermal mass and leakage resistance controlled with a bang bang controller
-    
+
     T0 = 17
     GND = ThermalMass.get_ground(T=T0) # non zero "ambient" temperature
     
     # Create elements
-    floor_name = "Floor (concrete)"
+    floor_name = "Floor"
     m_floor = ThermalMass(C=1440 * 440, T_initial=T0, name=floor_name)
     R_floor_gnd = ThermalResistance(R=0.01)
 
     def bangbang(t: float, prev_Q: float, system: ThermalSystem) -> float:
         # Ugly way to get the floor mass/temperature
         for mass in system.thermal_masses:
-            if mass.name == floor_name:
+            if mass.__name__ == floor_name:
                 floor = mass
 
         # Bang Bang controller on the floor temperature
@@ -43,6 +43,7 @@ if __name__ == "__main__":
 
     # Simulate
     system = ThermalSystem(m_floor)
-    time_step = 60 # [s]
+    system.generate_diagram('example_bangbang_RC.png')
+    dt = 60 # [s]
     total_time = 1 * 24 * 3600 # [s]
-    system.simulate(time_step, total_time, solver=Solver.RK4) # Use e.g a more accurate but slower solver
+    system.simulate(dt, total_time, solver=Solver.RK4) # Use e.g a more accurate but slower solver

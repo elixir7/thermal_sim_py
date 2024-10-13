@@ -20,12 +20,14 @@ if __name__ == "__main__":
     # Connection is done by connecting thermal masses to the elements via connect()
     m_floor.connect(heat_source)
     m_floor.connect(R_floor_gnd, GND)
+    
 
     # Simulate
-    time_step = 60 # [s]
+    dt = 60 # [s]
     total_time = 1 * 24 * 3600 # [s]
     system = ThermalSystem(m_floor)
-    system.simulate(time_step, total_time)
+    system.generate_diagram('example_PWM_RC.png')
+    system.simulate(dt, total_time)
 
 
 
