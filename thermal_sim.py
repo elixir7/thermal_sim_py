@@ -8,6 +8,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 
+import schemdraw
+import schemdraw.elements as elm
+
+import networkx as nx
+import matplotlib.pyplot as plt
+
 class ThermalElement(ABC):
     @abstractmethod
     def heat_flow(self, t: float, system: ThermalSystem):
@@ -15,8 +21,8 @@ class ThermalElement(ABC):
 
 class ThermalResistance(ThermalElement):
     def __init__(self, R:float, name:str=None):
-        self.__name__ = "R"
-        self.name = name
+        self.__name__ = "R" if name is None else name
+        self.name = self.__name__
         self.R = R
         self.TM1 = None
         self.TM2 = None
@@ -223,6 +229,147 @@ class ThermalSystem:
 
         plt.show(block=True)
 
+    def generate_diagram(self, filename: str = 'thermal_system_diagram.png'):
+        """
+        Generate a basic node diagram of the thermal system and save it as an image.
+        
+        Args:
+        filename (str): The name of the file to save the diagram (default: 'thermal_system_diagram.png').
+        """
+        # Create a new graph
+        G = nx.Graph()
+        
+        # Add nodes for thermal masses
+        for mass in self.thermal_masses:
+            G.add_node(mass.__name__, node_type='thermal_mass')
+        
+        # Add ground node
+        ground = ThermalMass.get_ground()
+        G.add_node(ground.__name__, node_type='ground')
+        
+        # Add edges for connections
+        for mass in self.thermal_masses:
+            for element in mass.connected_elements:
+                if isinstance(element, ThermalResistance):
+                    other_mass = element.TM1 if element.TM2 == mass else element.TM2
+                    G.add_edge(mass.__name__, other_mass.__name__, element_type='resistance', label=element.__name__)
+                elif isinstance(element, PowerSource):
+                    source_name = f"{element.__name__}\n(Power)"
+                    G.add_node(source_name, node_type='power_source')
+                    G.add_edge(mass.__name__, source_name, element_type='power_source')
+                elif isinstance(element, TemperatureSource):
+                    source_name = f"{element.__name__}\n(Temp)"
+                    G.add_node(source_name, node_type='temp_source')
+                    G.add_edge(mass.__name__, source_name, element_type='temp_source')
+        
+        # Set up the plot
+        plt.figure(figsize=(12, 8))
+        pos = nx.spring_layout(G, k=0.9, iterations=50)
+        
+        # Draw nodes
+        thermal_masses = [n for n, d in G.nodes(data=True) if d.get('node_type') == 'thermal_mass']
+        ground_nodes = [n for n, d in G.nodes(data=True) if d.get('node_type') == 'ground']
+        source_nodes = [n for n, d in G.nodes(data=True) if d.get('node_type') in ['power_source', 'temp_source']]
+        
+        nx.draw_networkx_nodes(G, pos, nodelist=thermal_masses, node_color='lightblue', node_size=3000, alpha=0.8)
+        nx.draw_networkx_nodes(G, pos, nodelist=ground_nodes, node_color='lightgreen', node_size=3000, alpha=0.8)
+        nx.draw_networkx_nodes(G, pos, nodelist=source_nodes, node_color='lightyellow', node_size=3000, alpha=0.8)
+        
+        # Draw edges
+        nx.draw_networkx_edges(G, pos)
+        
+        # Add labels
+        nx.draw_networkx_labels(G, pos, font_size=10, font_weight="bold")
+        
+        # Add edge labels for resistances
+        edge_labels = nx.get_edge_attributes(G, 'label')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+        
+        # Remove axis
+        plt.axis('off')
+        
+        # Save the diagram
+        plt.tight_layout()
+        plt.savefig(filename, format='png', dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Diagram saved as {filename}")
+
+
+    def generate_thermal_schematic(self, filename: str = 'thermal_schematic.png'):
+        """
+        Generate a schematic diagram of the thermal system using Schemdraw with a grid system.
+        
+        Args:
+        filename (str): The name of the file to save the schematic (default: 'thermal_schematic.png').
+        """
+        d = schemdraw.Drawing()
+        
+        # Dictionary to keep track of drawn elements
+        drawn_elements = {}
+        
+        # Grid settings
+        grid_step = 3
+        current_x = 0
+        current_y = 0
+        
+        def draw_thermal_mass(d, mass, x, y):
+            if mass not in drawn_elements:
+                label = mass.__name__
+                if mass == ThermalMass.get_ground():
+                    return  # We'll draw separate grounds for each connection
+                else:
+                    element = d.add(elm.Capacitor().down().label(label).at((x, y)))
+                    d.add(elm.Ground().at(element.end))
+                drawn_elements[mass] = element
+        
+        def draw_thermal_resistance(d, resistance, start_mass, end_mass):
+            if resistance not in drawn_elements:
+                start = drawn_elements[start_mass].start
+                if end_mass == ThermalMass.get_ground():
+                    end = (start[0], start[1] - grid_step)
+                    d.add(elm.Resistor().down().label(resistance.__name__).at(start).to(end))
+                    d.add(elm.Ground().at(end))
+                else:
+                    end = drawn_elements[end_mass].start
+                    d.add(elm.Resistor().label(resistance.__name__).at(start).to(end))
+                drawn_elements[resistance] = True
+        
+        def draw_power_source(d, source, mass):
+            if source not in drawn_elements:
+                mass_element = drawn_elements[mass]
+                element = d.add(elm.SourceI().left().label(source.__name__)).at(mass_element.start)
+                d.add(elm.Ground().at(element.end))
+                drawn_elements[source] = True
+        
+        def draw_temperature_source(d, source, mass):
+            if source not in drawn_elements:
+                mass_element = drawn_elements[mass]
+                d.add(elm.SourceV().up().label(source.__name__).at(mass_element.center).length(grid_step))
+                drawn_elements[source] = True
+        
+        # Draw thermal masses
+        for mass in self.thermal_masses:
+            draw_thermal_mass(d, mass, current_x, current_y)
+            current_x += grid_step
+        
+        # Draw connections
+        for mass in self.thermal_masses:
+            for element in mass.connected_elements:
+                if isinstance(element, ThermalResistance):
+                    other_mass = element.TM1 if element.TM2 == mass else element.TM2
+                    draw_thermal_resistance(d, element, mass, other_mass)
+                elif isinstance(element, PowerSource):
+                    draw_power_source(d, element, mass)
+                elif isinstance(element, TemperatureSource):
+                    draw_temperature_source(d, element, mass)
+        
+        # Save the schematic
+        d.save(filename)
+        print(f"Schematic saved as {filename}")
+
+
+    
+    
 
 def pwm(t: float, prev_Q: float, system: ThermalSystem) -> float:
     P = 1000
@@ -236,7 +383,6 @@ def sun(t: float, prev_Q: float, system: ThermalSystem) -> float:
     P = 100
     f = 1/(24*3600)
     return P * sin(2*pi*f*t)
-
 
 
 if __name__ == "__main__":
@@ -265,6 +411,7 @@ if __name__ == "__main__":
     # Simulate
     thermal_masses = [m_floor, m_air]
     system = ThermalSystem(thermal_masses)
+    system.generate_diagram('node_diagram.png')
     dt = 60 # [s]
     total_time = 2 * 24 * 3600 # [s]
     system.simulate(dt, total_time)
