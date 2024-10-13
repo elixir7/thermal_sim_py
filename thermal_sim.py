@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Callable
 from abc import ABC, abstractmethod
 from math import sin, pi
 from enum import Enum
@@ -34,14 +34,14 @@ class ThermalResistance(ThermalElement):
         self.connected = True
     
 class PowerSource(ThermalElement):
-    def __init__(self, heat_flow_func, name:str=None):
+    def __init__(self, heat_flow_func: Callable[[float, float, ThermalSystem], float], name:str=None):
         self.__name__ = "PS" if name is None else name
-        self.Q = heat_flow_func
-        self.prev_Q = 0
+        self.dQdt = heat_flow_func
+        self.prev_dQdt = 0 #  Store previous heat flow for easier implementation of controllers
 
     def heat_flow(self, t, system):
-        self.prev_Q = self.Q(t, self.prev_Q, system)
-        return self.prev_Q
+        self.prev_dQdt = self.dQdt(t, self.prev_dQdt, system)
+        return self.prev_dQdt
 
 class TemperatureSource(ThermalElement):
     def __init__(self, temp_func, name:str=None):
@@ -89,9 +89,12 @@ class ThermalMass():
         if element not in self.connected_elements:
             self.connected_elements.append(element)
 
-class ThermalSystem:
-    SOLVER_OPTIONS = ["rk4", "euler", "odeint"]
+class Solver(Enum):
+    RK4 = "rk4"
+    EULER = "euler"
+    ODEINT = "odeint"
 
+class ThermalSystem:
     def __init__(self, thermal_masses:List[ThermalMass], GND:ThermalMass=None):
         # No ground specified, create a new ground instance
         if GND is None:
@@ -146,31 +149,28 @@ class ThermalSystem:
     def euler_step(self, y, t:float, dt:float):
         return y + dt * self.dydt(y, t)
 
-    def custom_ode_solver(self, y0, t:float, solver:str):
-        assert solver in self.SOLVER_OPTIONS, f"Solver must be one of {self.SOLVER_OPTIONS}"
+    def custom_ode_solver(self, y0, t:float, solver:Solver):
         y = np.array(y0)
         dt = t[1] - t[0]
         solution = np.zeros((len(t), len(y0)))
 
         for i, time in enumerate(t):
             solution[i] = y
-            if solver == "rk4":
+            if solver is Solver.RK4:
                 y = self.rk4_step(y, time, dt)
-            elif solver == "euler":
+            elif solver is Solver.EULER:
                 y = self.euler_step(y, time, dt)
             else:
                 raise ValueError("Solver not found")
 
         return solution
 
-    def simulate(self, dt:float, duration:float, plot:bool=True, solver:str=None):
+    def simulate(self, dt:float, duration:float, plot:bool=True, solver:Solver=Solver.EULER):
         time = np.arange(0, duration, dt)
-
         y0 = [mass.T for mass in self.thermal_masses]
         
-        if solver is None:
-            solution = self.custom_ode_solver(y0, time, "euler") 
-        elif solver == "odeint":
+        assert solver in Solver, "Invalid solver"
+        if solver == Solver.ODEINT:
             solution = odeint(self.dydt, y0, time)
         else:
             solution = self.custom_ode_solver(y0, time, solver) 
@@ -265,4 +265,4 @@ if __name__ == "__main__":
     system = ThermalSystem(thermal_masses)
     dt = 60 # [s]
     total_time = 1 * 24 * 3600 # [s]
-    system.simulate(dt, total_time, solver="euler")
+    system.simulate(dt, total_time)

@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # Simulate
     time_step = 60 # [s]
     total_time = 1 * 24 * 3600 # [s]
-    system = ThermalSystem(m_floor, GND)
+    system = ThermalSystem(m_floor)
     system.simulate(time_step, total_time)
 
 

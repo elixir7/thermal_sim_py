@@ -1,8 +1,8 @@
-from thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource
+from thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource, Solver
 
 if __name__ == "__main__":
     # Simulate a paralell connected thermal mass and leakage resistance controlled with a bang bang controller
-
+    
     T0 = 17
     GND = ThermalMass.get_ground(T=T0) # non zero "ambient" temperature
     
@@ -42,10 +42,7 @@ if __name__ == "__main__":
     m_floor.connect(R_floor_gnd, GND)
 
     # Simulate
-    system = ThermalSystem(m_floor, GND)
+    system = ThermalSystem(m_floor)
     time_step = 60 # [s]
     total_time = 1 * 24 * 3600 # [s]
-    # system.simulate(time_step, total_time, solver="rk4") # Use e.g a more accurate but slower solver
-
-    system = ThermalSystem([m_floor, GND]) # Include ground in thermal masses to see leakage
-    system.simulate(time_step, total_time)
+    system.simulate(time_step, total_time, solver=Solver.RK4) # Use e.g a more accurate but slower solver
