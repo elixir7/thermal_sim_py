@@ -60,10 +60,10 @@ class TemperatureSource(ThermalElement):
     def heat_flow(self, t:float, system: ThermalSystem):
         self.TM.T = self.temp_func(t, system)
         return 0
-    
+
     def connect(self, TM:ThermalMass):
         self.TM.connect(self.R, TM)
-    
+
 class ThermalMass():
     ground_instance = None
 
@@ -73,8 +73,11 @@ class ThermalMass():
         self.connected_elements = []
         self.__name__ = "TM" if name is None else name
 
+    def update(self, t:float):
+        self.T = t
+
     @classmethod
-    def get_ground(cls, T:float=0):  
+    def get_ground(cls, T:float=0):
         if cls.ground_instance is None:
             cls.ground_instance = cls(C=1e20, T_initial=T, name="GND")
         return cls.ground_instance
@@ -86,12 +89,12 @@ class ThermalMass():
             else:
                 raise ValueError("Invalid connection")
             return
-        
+
         if isinstance(element1, TemperatureSource):
             TS = element1
             TS.connect(self)
             return
-        
+
         self._connect(element1)
 
     def _connect(self, element):
@@ -116,14 +119,15 @@ class ThermalSystem:
         assert isinstance(GND, ThermalMass), "GND must be a ThermalMass instance"
         self.thermal_masses = thermal_masses
         self.heat_flows = {}  # New dictionary to store heat flows between elements
+        self.time = 0
 
-    def dydt(self, y, t): 
+    def dydt(self, y, t):
         temperatures = y if y.size > 1 else [y]
-        
+
         # Update temperatures in system elements
         for mass, T in zip(self.thermal_masses, temperatures):
             mass.T = T
-        
+
         dy_dt = np.zeros((len(self.thermal_masses),))
 
         for i, mass in enumerate(self.thermal_masses):
@@ -136,7 +140,7 @@ class ThermalSystem:
                 else:
                     heat_flow = element.heat_flow(t, self)
                 Q += heat_flow
-                
+
                 # Store heat flow for each element for plotting
                 if mass not in self.heat_flows:
                     self.heat_flows[mass] = {}
@@ -147,14 +151,14 @@ class ThermalSystem:
             dTdt = Q / mass.C
             dy_dt[i] = dTdt
         return dy_dt
-    
+
     def rk4_step(self, y, t:float, dt:float):
         k1 = self.dydt(y, t)
         k2 = self.dydt(y + 0.5*dt*k1, t + 0.5*dt)
         k3 = self.dydt(y + 0.5*dt*k2, t + 0.5*dt)
         k4 = self.dydt(y + dt*k3, t + dt)
         return y + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
-    
+
     def euler_step(self, y, t:float, dt:float):
         return y + dt * self.dydt(y, t)
 
@@ -177,17 +181,33 @@ class ThermalSystem:
     def simulate(self, dt:float, duration:float, plot:bool=True, solver:Solver=Solver.EULER):
         time = np.arange(0, duration, dt)
         y0 = [mass.T for mass in self.thermal_masses]
-        
+
         assert solver in Solver, "Invalid solver"
         if solver == Solver.ODEINT:
             solution = odeint(self.dydt, y0, time)
         else:
-            solution = self.custom_ode_solver(y0, time, solver) 
+            solution = self.custom_ode_solver(y0, time, solver)
 
         if plot:
             self.plot_results(time, solution)
 
         return time, solution
+
+    def step(self, dt:float, solver:Solver=Solver.EULER):
+        y = [mass.T for mass in self.thermal_masses]
+        t = [self.time, self.time+dt]
+
+        assert solver in Solver, "Invalid solver"
+        if solver == Solver.ODEINT:
+            solution = odeint(self.dydt, y, t)
+        else:
+            solution = self.custom_ode_solver(y, t, solver)
+
+        # Update the simulation parameters for the next step
+        for i, mass in enumerate(self.thermal_masses):
+            mass.update(solution[1, i])
+
+        self.time += dt
 
     def _get_heat_flow_label(self, element, mass):
         if isinstance(element, ThermalResistance):
@@ -199,7 +219,7 @@ class ThermalSystem:
                 return f"{element.__name__} -> {mass.__name__}"
         else:
             return f"{element.__name__} -> {mass.__name__}"
-        
+
     def plot_results(self, time, solution, plot_heat_flows:bool=True, plot_ground:bool=False):
         N_masses = min(solution.shape)
 
@@ -220,7 +240,7 @@ class ThermalSystem:
 
         ax1.set(xlabel="Time (hours)", ylabel="Temperature (°C)")
         ax2.set(xlabel="Time (hours)", ylabel="Heat Flow (W)")
-        
+
         # Adjust axis
         for ax in [ax1, ax2]:
             ax.grid(True)
@@ -231,21 +251,21 @@ class ThermalSystem:
     def generate_diagram(self, filename: str = 'thermal_system_diagram.png'):
         """
         Generate a basic node diagram of the thermal system and save it as an image.
-        
+
         Args:
         filename (str): The name of the file to save the diagram (default: 'thermal_system_diagram.png').
         """
         # Create a new graph
         G = nx.Graph()
-        
+
         # Add nodes for thermal masses
         for mass in self.thermal_masses:
             G.add_node(mass.__name__, node_type='thermal_mass')
-        
+
         # Add ground node
         ground = ThermalMass.get_ground()
         G.add_node(ground.__name__, node_type='ground')
-        
+
         # Add edges for connections
         for mass in self.thermal_masses:
             for element in mass.connected_elements:
@@ -260,33 +280,33 @@ class ThermalSystem:
                     source_name = f"{element.__name__}\n(Temp)"
                     G.add_node(source_name, node_type='temp_source')
                     G.add_edge(mass.__name__, source_name, element_type='temp_source')
-        
+
         # Set up the plot
         plt.figure(figsize=(12, 8))
         pos = nx.spring_layout(G, k=0.9, iterations=50)
-        
+
         # Draw nodes
         thermal_masses = [n for n, d in G.nodes(data=True) if d.get('node_type') == 'thermal_mass']
         ground_nodes = [n for n, d in G.nodes(data=True) if d.get('node_type') == 'ground']
         source_nodes = [n for n, d in G.nodes(data=True) if d.get('node_type') in ['power_source', 'temp_source']]
-        
+
         nx.draw_networkx_nodes(G, pos, nodelist=thermal_masses, node_color='lightblue', node_size=3000, alpha=0.8)
         nx.draw_networkx_nodes(G, pos, nodelist=ground_nodes, node_color='lightgreen', node_size=3000, alpha=0.8)
         nx.draw_networkx_nodes(G, pos, nodelist=source_nodes, node_color='lightyellow', node_size=3000, alpha=0.8)
-        
+
         # Draw edges
         nx.draw_networkx_edges(G, pos)
-        
+
         # Add labels
         nx.draw_networkx_labels(G, pos, font_size=10, font_weight="bold")
-        
+
         # Add edge labels for resistances
         edge_labels = nx.get_edge_attributes(G, 'label')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
-        
+
         # Remove axis
         plt.axis('off')
-        
+
         # Save the diagram
         plt.tight_layout()
         plt.savefig(filename, format='png', dpi=300, bbox_inches='tight')
@@ -297,20 +317,20 @@ class ThermalSystem:
         """
         !!! Not working well, needs to be fixed !!!
         Generate a schematic diagram of the thermal system using Schemdraw with a grid system.
-        
+
         Args:
         filename (str): The name of the file to save the schematic (default: 'thermal_schematic.png').
         """
         d = schemdraw.Drawing()
-        
+
         # Dictionary to keep track of drawn elements
         drawn_elements = {}
-        
+
         # Grid settings
         grid_step = 3
         current_x = 0
         current_y = 0
-        
+
         def draw_thermal_mass(d, mass, x, y):
             if mass not in drawn_elements:
                 label = mass.__name__
@@ -320,7 +340,7 @@ class ThermalSystem:
                     element = d.add(elm.Capacitor().down().label(label).at((x, y)))
                     d.add(elm.Ground().at(element.end))
                 drawn_elements[mass] = element
-        
+
         def draw_thermal_resistance(d, resistance, start_mass, end_mass):
             if resistance not in drawn_elements:
                 start = drawn_elements[start_mass].start
@@ -332,25 +352,25 @@ class ThermalSystem:
                     end = drawn_elements[end_mass].start
                     d.add(elm.Resistor().label(resistance.__name__).at(start).to(end))
                 drawn_elements[resistance] = True
-        
+
         def draw_power_source(d, source, mass):
             if source not in drawn_elements:
                 mass_element = drawn_elements[mass]
                 element = d.add(elm.SourceI().left().label(source.__name__)).at(mass_element.start)
                 d.add(elm.Ground().at(element.end))
                 drawn_elements[source] = True
-        
+
         def draw_temperature_source(d, source, mass):
             if source not in drawn_elements:
                 mass_element = drawn_elements[mass]
                 d.add(elm.SourceV().up().label(source.__name__).at(mass_element.center).length(grid_step))
                 drawn_elements[source] = True
-        
+
         # Draw thermal masses
         for mass in self.thermal_masses:
             draw_thermal_mass(d, mass, current_x, current_y)
             current_x += grid_step
-        
+
         # Draw connections
         for mass in self.thermal_masses:
             for element in mass.connected_elements:
@@ -361,11 +381,11 @@ class ThermalSystem:
                     draw_power_source(d, element, mass)
                 elif isinstance(element, TemperatureSource):
                     draw_temperature_source(d, element, mass)
-        
+
         # Save the schematic
         d.save(filename)
         print(f"Schematic saved as {filename}")
-    
+
 
 def pwm(t: float, prev_Q: float, system: ThermalSystem) -> float:
     P = 1000
@@ -379,7 +399,7 @@ if __name__ == "__main__":
     T0 = 17
     GND = ThermalMass.get_ground(T=T0)
 
-    
+
     # Create elements
     floor_name = "Floor"
     m_floor = ThermalMass(C=1440 * 440, T_initial=T0, name=floor_name)
@@ -387,7 +407,7 @@ if __name__ == "__main__":
     R_floor_gnd = ThermalResistance(R=0.01)
     R_air_gnd = ThermalResistance(R=0.05)
     R_floor_air = ThermalResistance(R=0.05)
-    
+
     heat_source = PowerSource(pwm, name="Heating cable")
     sun_source = PowerSource(sun, name="Sun")
     atmos = TemperatureSource(lambda t, system: 10)
