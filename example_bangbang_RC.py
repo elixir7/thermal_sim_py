@@ -1,11 +1,11 @@
-from thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource, Solver
+from src.thermal_sim.thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource, Solver
 
 if __name__ == "__main__":
     # Simulate a paralell connected thermal mass and leakage resistance controlled with a bang bang controller
 
     T0 = 17
     GND = ThermalMass.get_ground(T=T0) # non zero "ambient" temperature
-    
+
     # Create elements
     floor_name = "Floor"
     m_floor = ThermalMass(C=1440 * 440, T_initial=T0, name=floor_name)
@@ -23,7 +23,7 @@ if __name__ == "__main__":
         T_ref = 20
         T_max = T_ref + T_hyst
         T_min = T_ref - T_hyst
-        
+
         prev_output = 1 if prev_Q > 0 else 0
 
         if prev_output and floor.T > T_max:
@@ -34,7 +34,7 @@ if __name__ == "__main__":
             output = prev_output
 
         return P*output
-    
+
     heat_source = PowerSource(bangbang)
 
     # Connect elements
