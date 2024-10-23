@@ -1,4 +1,4 @@
-from thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource
+from src.thermal_sim.thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource
 
 def pwm(t: float, prev_Q: float, system: ThermalSystem) -> float:
     P = 500
@@ -6,7 +6,7 @@ def pwm(t: float, prev_Q: float, system: ThermalSystem) -> float:
     duty = 0.5
     return P if (t % period) < duty*period else 0
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     # Simulate a paralell connected thermal mass and leakage resistance with a power source connected.
     # A simple floor heating model with a constant power source (PWM controlled)
 
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # Connection is done by connecting thermal masses to the elements via connect()
     m_floor.connect(heat_source)
     m_floor.connect(R_floor_gnd, GND)
-    
+
 
     # Simulate
     dt = 60 # [s]

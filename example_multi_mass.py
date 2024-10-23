@@ -1,5 +1,5 @@
 from math import sin, pi
-from thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource, TemperatureSource
+from src.thermal_sim.thermal_sim import ThermalMass, ThermalResistance, ThermalSystem, PowerSource, TemperatureSource
 
 # Disturbance power source
 def sun(t: float, prev_Q: float, system: ThermalSystem) -> float:
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     T0 = 17
     GND = ThermalMass.get_ground(T=T0)
 
-    
+
     # Create elements
     m_floor = ThermalMass(C=1440 * 440, T_initial=T0, name="Floor")
     m_air = ThermalMass(C=1440 * 200, T_initial=T0, name="Air")
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     R_floor_air = ThermalResistance(R=0.05, name="R_f_a")
     R_roof_gnd = ThermalResistance(R=0.01, name="R_r_gnd")
     R_air_roof = ThermalResistance(R=1, name="R_a_r")
-    
+
     heat_source = PowerSource(pwm, name="Heating cable")
     sun_source = PowerSource(sun, name="Sun")
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     R_floor_air.connect(m_floor, m_air)
 
     R_air_roof.connect(m_air, m_roof)
- 
+
     # Simulate
     thermal_masses = [m_floor, m_air, m_roof]
     system = ThermalSystem(thermal_masses)

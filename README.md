@@ -1,15 +1,15 @@
 # Thermal Sim
-Create thermal system based on componennts, automatically calculates differetial equations based on connections and simulates using a variety of solvers.
+Create thermal system based on components, automatically calculates differential equations based on connections and simulates using a variety of solvers.
 Basic components:
-- Thermal Resistor   
-- Thermal Mass 
+- Thermal Resistor
+- Thermal Mass
 - Power Source
 - Temperature source (infinite)
 
 
 ## Usage
 ### Simulate
-Create a basic parallell thermal mass and leakage resistor with a PWM controlled powersource.
+Create a basic parallel thermal mass and leakage resistor with a PWM controlled power source.
 ```python
 from thermal_sim import ThermalSystem, Resistor, Capacitor, PowerSource, TemperatureSource
 
@@ -21,8 +21,8 @@ def pwm(t: float, prev_Q: float, system: ThermalSystem) -> float:
     return P if (t % period) < duty*period else 0
 
 # Create components
-GND = ThermalMass.get_ground(T=0) # A thermal ground is always reqquired
-m_floor = ThermalMass(C=1440 * 440, name="Floor") # [J/°C] Concrete floor 
+GND = ThermalMass.get_ground(T=0) # A thermal ground is always required
+m_floor = ThermalMass(C=1440 * 440, name="Floor") # [J/°C] Concrete floor
 R_floor_gnd = ThermalResistance(R=0.01) # [°C/W]
 heat_source = PowerSource(pwm)
 
