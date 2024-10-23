@@ -7,10 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 
-import schemdraw
-import schemdraw.elements as elm
-
-import networkx as nx
 import matplotlib.pyplot as plt
 
 class ThermalElement(ABC):
@@ -255,6 +251,8 @@ class ThermalSystem:
         Args:
         filename (str): The name of the file to save the diagram (default: 'thermal_system_diagram.png').
         """
+        import networkx as nx
+
         # Create a new graph
         G = nx.Graph()
 
@@ -321,6 +319,9 @@ class ThermalSystem:
         Args:
         filename (str): The name of the file to save the schematic (default: 'thermal_schematic.png').
         """
+        import schemdraw
+        import schemdraw.elements as elm
+
         d = schemdraw.Drawing()
 
         # Dictionary to keep track of drawn elements
