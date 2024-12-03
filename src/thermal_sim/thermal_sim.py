@@ -175,6 +175,8 @@ class ThermalSystem:
         return solution
 
     def simulate(self, dt:float, duration:float, plot:bool=True, solver:Solver=Solver.EULER):
+        self.dt = dt
+        self.t_max = duration
         time = np.arange(0, duration, dt)
         y0 = [mass.T for mass in self.thermal_masses]
 
